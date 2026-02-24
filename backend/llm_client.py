@@ -166,6 +166,50 @@ Respond ONLY with valid JSON."""
         logger.info("LLM judge evaluation completed.")
         return self._parse_json(content)
     
+    def generate_search_query(self, technical_doc_text: str) -> str:
+        """Generate a targeted EU AI Act search query from a technical document.
+
+        Uses the LLM to read the document and produce a concise query that
+        captures the specific AI components, use-cases, and risk areas described,
+        rather than relying on generic hardcoded keywords.
+
+        Args:
+            technical_doc_text: Snippet of the technical document (first 2000 chars)
+
+        Returns:
+            A focused search query string for vector store retrieval
+        """
+        prompt = f"""You are a legal-technical assistant helping retrieve relevant sections from the EU AI Act.
+
+Given the following excerpt from a technical document, write a short, precise search query (2-4 sentences max)
+that best captures:
+- The type of AI system described (if any)
+- Its application domain (e.g., healthcare, biometrics, hiring)
+- The specific risks or capabilities that may be regulated under the EU AI Act
+
+Do NOT include generic phrases like "EU AI Act" or "compliance" in the query.
+Write ONLY the search query text, nothing else.
+
+Technical Document Excerpt:
+{technical_doc_text[:2000]}
+
+Search Query:"""
+
+        logger.info("Generating LLM-based search query for retrieval...")
+        response = self._retry_with_exponential_backoff(
+            self.client.chat.completions.create,
+            model=self.deployment_name,
+            messages=[
+                {"role": "system", "content": "You are a concise search query writer. Output only the query text."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0,
+            max_tokens=150,
+        )
+        query = response.choices[0].message.content.strip()
+        logger.info(f"Generated search query: {query[:120]}...")
+        return query
+
     def _parse_json(self, content: str) -> Dict[str, Any]:
         """Parse JSON from LLM response, handling markdown code blocks."""
         # Strip markdown code fences if present

@@ -21,27 +21,31 @@ class RAGPipeline:
         self.top_k = top_k_retrieval
     
     def _reformulate_query(self, text_snippet: str) -> str:
-        """Create search query from technical document snippet.
-        
+        """Create a targeted search query from a technical document snippet.
+
+        Uses the LLM to generate a concise, document-specific query for better
+        retrieval from the EU AI Act vector store. Falls back to a heuristic
+        approach if the LLM call fails.
+
         Args:
-            text_snippet: Snippet from technical document
-            
+            text_snippet: Snippet from the technical document
+
         Returns:
             Reformulated search query
         """
-        # Extract key terms for better retrieval
-        # For now, use a simple approach - could be enhanced with LLM
-        query_parts = [
-            "AI system",
-            "machine learning",
-            "high risk AI",
-            "prohibited AI practices",
-            "artificial intelligence regulation"
-        ]
-        
-        # Combine with document snippet
-        query = f"{text_snippet[:500]} {' '.join(query_parts)}"
-        return query
+        try:
+            return llm_client.generate_search_query(text_snippet)
+        except Exception as e:
+            logger.warning(f"LLM query generation failed, using heuristic fallback: {e}")
+            # Heuristic fallback — original static approach
+            query_parts = [
+                "AI system",
+                "machine learning",
+                "high risk AI",
+                "prohibited AI practices",
+                "artificial intelligence regulation"
+            ]
+            return f"{text_snippet[:500]} {' '.join(query_parts)}"
     
     def retrieve_context(self, technical_doc_text: str) -> List[str]:
         """Retrieve relevant EU AI Act context.
